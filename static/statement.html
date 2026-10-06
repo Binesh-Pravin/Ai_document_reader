@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bank Statement Reader</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ground: #F3F5F7; --ink: #12202B; --muted: #4A5B68; --line: #E3E8EC; --edge: #9FB3BF;
+    --accent: #0F766E; --accent-dark: #0B5A53; --accent-soft: #DCF1EE;
+    --ok: #0B6B33; --ok-soft: #DDF3E4; --warn: #8A3B00; --warn-soft: #FDE8D3;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--ground); color: var(--ink); font-family: 'IBM Plex Sans', system-ui, sans-serif; }
+  .page { max-width: 1280px; margin: 0 auto; padding: 32px 48px; display: flex; flex-direction: column; gap: 28px; min-height: 100vh; }
+  header { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; justify-content: space-between; }
+  h1 { margin: 0; font-size: 24px; font-weight: 600; }
+  header p { margin: 4px 0 0; font-size: 14px; color: var(--muted); }
+  .nav { display: flex; gap: 8px; margin-top: 12px; }
+  .nav a { padding: 6px 14px; border-radius: 999px; font-size: 14px; font-weight: 500; text-decoration: none; color: var(--muted); border: 1px solid var(--edge); }
+  .nav a[aria-current] { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .badge { padding: 8px 14px; border-radius: 999px; font-size: 14px; font-weight: 500; background: var(--accent-soft); color: var(--accent-dark); }
+  .badge.off { background: var(--warn-soft); color: var(--warn); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; max-width: 1200px; align-items: start; }
+  .panel { background: #fff; border-radius: 12px; padding: 24px; display: flex; flex-direction: column; gap: 18px; }
+  .panel h3, .panel h2 { margin: 0; font-size: 16px; font-weight: 600; }
+  .drop { background: #fff; border: 2px dashed var(--edge); border-radius: 12px; padding: 40px 24px; text-align: center; transition: border-color .15s, background .15s; }
+  .drop.over { border-color: var(--accent); background: #F0FAF8; }
+  .drop h2 { margin: 12px 0 0; font-size: 18px; font-weight: 600; }
+  .drop p { margin: 6px 0 16px; font-size: 14px; color: var(--muted); overflow-wrap: anywhere; }
+  button, select, input { font-family: inherit; }
+  .btn { min-height: 44px; padding: 0 24px; border: 0; border-radius: 8px; background: var(--accent); color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; }
+  .btn.big { min-height: 48px; font-size: 16px; }
+  .btn.light { background: #fff; color: var(--ink); border: 1px solid var(--edge); }
+  .btn:disabled { background: #9FB3BF; cursor: not-allowed; }
+  .btn:focus-visible, select:focus-visible, input:focus-visible { outline: 3px solid #0F766E55; outline-offset: 2px; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 14px; color: var(--muted); }
+  select, input[type=password] { min-height: 44px; border: 1px solid var(--edge); border-radius: 8px; padding: 0 12px; font-size: 15px; background: #fff; color: var(--ink); }
+  .hidden { display: none; }
+  .error { background: #FDE4E1; color: #8E1B10; border-radius: 8px; padding: 12px 14px; font-size: 14px; }
+  .results { display: flex; flex-direction: column; gap: 20px; max-width: 1200px; }
+  .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px 24px; }
+  .summary .k { font-size: 13px; color: var(--muted); }
+  .summary .v { font-size: 15px; font-weight: 500; overflow-wrap: anywhere; }
+  .banner { border-radius: 12px; padding: 16px 20px; font-size: 15px; font-weight: 500; }
+  .banner.ok { background: var(--ok-soft); color: var(--ok); }
+  .banner.bad { background: var(--warn-soft); color: var(--warn); }
+  .notes { margin: 0; padding-left: 20px; font-size: 14px; color: var(--muted); }
+  .table-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
+  .table-wrap { overflow: auto; max-height: 620px; border: 1px solid var(--line); border-radius: 8px; }
+  table { border-collapse: collapse; width: 100%; min-width: 860px; font-size: 14px; }
+  th { position: sticky; top: 0; background: #F8FAFB; text-align: left; font-weight: 600; color: var(--muted); padding: 10px 12px; border-bottom: 2px solid var(--line); white-space: nowrap; }
+  td { padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  tr.flag td { background: #FFF6EC; }
+  td.note { color: var(--warn); font-size: 13px; min-width: 220px; }
+  @media (max-width: 640px) { .page { padding: 20px 16px; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <div>
+      <h1>Bank Statement Reader</h1>
+      <p>Read a statement PDF from net banking. Everything runs on this machine.</p>
+      <nav class="nav"><a href="/">ID cards</a><a href="/statement" aria-current="page">Bank statements</a></nav>
+    </div>
+    <div id="status" class="badge off">Checking local model…</div>
+  </header>
+
+  <div class="grid">
+    <div id="drop" class="drop">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#0F766E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg>
+      <h2>Drop a statement PDF here</h2>
+      <p id="fname">One PDF at a time</p>
+      <button id="browse" class="btn" type="button">Browse file</button>
+      <input id="picker" type="file" accept=".pdf" class="hidden">
+    </div>
+    <div class="panel">
+      <h3>Settings</h3>
+      <div class="field">
+        <label for="model">Model (reads account holder, account number, bank, branch)</label>
+        <select id="model"><option>gemma3:12b</option></select>
+      </div>
+      <div id="pwbox" class="field hidden">
+        <label for="pw">PDF password</label>
+        <input id="pw" type="password" autocomplete="off">
+      </div>
+      <button id="go" class="btn big" type="button" disabled>Read statement</button>
+      <div id="err" class="error hidden" role="alert"></div>
+    </div>
+  </div>
+
+  <div id="results" class="results hidden"></div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+const money = (n) => n == null ? "" : n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const dmy = (iso) => iso ? iso.split("-").reverse().join("/") : "";
+
+let file = null, last = null;
+
+/* ---------- Model status ---------- */
+(async function loadModels() {
+  const status = $("status"), select = $("model");
+  try {
+    const d = await (await fetch("/api/models")).json();
+    if (d.ready) {
+      const list = d.models.length ? d.models : [d.default];
+      select.replaceChildren(...list.map((m) => { const o = el("option", "", m); o.value = m; o.selected = m === d.default; return o; }));
+      status.textContent = "Local model ready"; status.className = "badge";
+    } else { status.textContent = "Ollama not running. Account details will be skipped."; }
+  } catch { status.textContent = "Cannot reach the app server."; }
+})();
+
+/* ---------- File choice ---------- */
+function setFile(f) {
+  if (!f || !/\.pdf$/i.test(f.name)) return;
+  file = f;
+  $("fname").textContent = f.name;
+  $("go").disabled = false;
+  $("pwbox").classList.add("hidden");
+  $("err").classList.add("hidden");
+}
+const drop = $("drop");
+$("browse").onclick = () => $("picker").click();
+$("picker").onchange = (e) => { setFile(e.target.files[0]); e.target.value = ""; };
+["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", (e) => setFile(e.dataTransfer.files[0]));
+
+/* ---------- Results ---------- */
+function render(d) {
+  const box = $("results"), v = d.verification, h = d.header;
+  box.replaceChildren();
+
+  const sum = el("div", "panel");
+  sum.append(el("h2", "", "Account details"));
+  const grid = el("div", "summary");
+  [["Account holder", h.account_holder], ["Account number", h.account_number], ["Bank", h.bank_name],
+   ["Branch", h.branch], ["IFSC", h.ifsc], ["Period", dmy(d.period.from) + " to " + dmy(d.period.to)],
+   ["Opening balance", money(v.opening_balance)], ["Closing balance", money(v.closing_balance)],
+   ["Total debits", money(v.debit_total)], ["Total credits", money(v.credit_total)],
+   ["Transactions", String(v.rows)]].forEach(([k, val]) => {
+    const item = el("div");
+    item.append(el("div", "k", k), el("div", "v", val || "Not found"));
+    grid.append(item);
+  });
+  sum.append(grid);
+  box.append(sum);
+
+  const bad = v.mismatch_rows.length;
+  const banner = el("div", "banner " + (v.all_ok ? "ok" : "bad"),
+    v.all_ok ? "All " + v.rows + " transactions reconcile with the running balance."
+             : bad + " row(s) need checking against the PDF: row " + v.mismatch_rows.join(", ") + ".");
+  box.append(banner);
+  if (d.warnings.length) {
+    const ul = el("ul", "notes");
+    d.warnings.forEach((w) => ul.append(el("li", "", w)));
+    box.append(ul);
+  }
+
+  const panel = el("div", "panel");
+  const head = el("div", "table-head");
+  head.append(el("h2", "", "Transactions"));
+  const dl = el("button", "btn", "Download Excel");
+  dl.type = "button";
+  dl.onclick = download;
+  head.append(dl);
+  panel.append(head);
+
+  const wrap = el("div", "table-wrap"), table = el("table");
+  const tr = el("tr");
+  [["#", ""], ["Date", ""], ["Description", ""], ["Debit", "num"], ["Credit", "num"], ["Balance", "num"], ["Check", ""]]
+    .forEach(([t, c]) => tr.append(el("th", c, t)));
+  table.append(el("thead")); table.firstChild.append(tr);
+  const body = el("tbody");
+  d.transactions.forEach((r) => {
+    const row = el("tr", r.status === "ok" ? "" : "flag");
+    row.append(el("td", "", String(r.row)), el("td", "", dmy(r.date)), el("td", "", r.description),
+      el("td", "num", money(r.debit)), el("td", "num", money(r.credit)), el("td", "num", money(r.balance)),
+      el("td", "note", r.note));
+    body.append(row);
+  });
+  table.append(body); wrap.append(table); panel.append(wrap);
+  box.append(panel);
+  box.classList.remove("hidden");
+}
+
+async function download() {
+  const res = await fetch("/api/statement/xlsx", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(last)
+  });
+  if (!res.ok) { showError("Could not create the Excel file."); return; }
+  const url = URL.createObjectURL(await res.blob());
+  const a = el("a"); a.href = url; a.download = "bank_statement.xlsx"; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function showError(msg) { const e = $("err"); e.textContent = msg; e.classList.remove("hidden"); }
+
+$("go").onclick = async () => {
+  const btn = $("go");
+  btn.disabled = true; btn.textContent = "Reading statement…";
+  $("err").classList.add("hidden"); $("results").classList.add("hidden");
+  const form = new FormData();
+  form.append("file", file); form.append("model", $("model").value); form.append("password", $("pw").value);
+  try {
+    const res = await fetch("/api/statement", { method: "POST", body: form });
+    const d = await res.json();
+    if (!res.ok) {
+      if (d.error === "password_required") {
+        $("pwbox").classList.remove("hidden"); $("pw").focus();
+        showError("This PDF is password protected. Enter the password and try again.");
+      } else { showError(d.error || "Could not read this statement."); }
+      return;
+    }
+    last = d; render(d);
+  } catch (err) { showError("Could not reach the app: " + err.message); }
+  finally { btn.textContent = "Read statement"; btn.disabled = !file; }
+};
+</script>
+</body>
+</html>

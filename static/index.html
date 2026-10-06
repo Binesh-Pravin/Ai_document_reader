@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ID Card Reader</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ground: #F3F5F7; --ink: #12202B; --muted: #4A5B68; --line: #E3E8EC; --edge: #9FB3BF;
+    --accent: #0F766E; --accent-dark: #0B5A53; --accent-soft: #DCF1EE;
+    --blue-soft: #E3ECF8; --blue-ink: #1B3F7A;
+    --ok: #0B6B33; --warn: #8A3B00; --warn-edge: #C2570C; --warn-soft: #FDE8D3;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--ground); color: var(--ink); font-family: 'IBM Plex Sans', system-ui, sans-serif; }
+  .page { max-width: 1280px; margin: 0 auto; padding: 32px 48px; display: flex; flex-direction: column; gap: 28px; min-height: 100vh; }
+  header { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; justify-content: space-between; }
+  h1 { margin: 0; font-size: 24px; font-weight: 600; }
+  header p { margin: 4px 0 0; font-size: 14px; color: var(--muted); }
+  .nav { display: flex; gap: 8px; margin-top: 12px; }
+  .nav a { padding: 6px 14px; border-radius: 999px; font-size: 14px; font-weight: 500; text-decoration: none; color: var(--muted); border: 1px solid var(--edge); }
+  .nav a[aria-current] { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .badge { padding: 8px 14px; border-radius: 999px; font-size: 14px; font-weight: 500; background: var(--accent-soft); color: var(--accent-dark); }
+  .badge.off { background: var(--warn-soft); color: var(--warn); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; max-width: 1200px; align-items: start; }
+  .col { display: flex; flex-direction: column; gap: 24px; }
+  .panel { background: #fff; border-radius: 12px; padding: 24px; display: flex; flex-direction: column; gap: 18px; }
+  .drop { background: #fff; border: 2px dashed var(--edge); border-radius: 12px; padding: 48px 24px; text-align: center; transition: border-color .15s, background .15s; }
+  .drop.over { border-color: var(--accent); background: #F0FAF8; }
+  .drop h2 { margin: 12px 0 0; font-size: 18px; font-weight: 600; }
+  .drop p { margin: 6px 0 16px; font-size: 14px; color: var(--muted); }
+  button, select, input, textarea { font-family: inherit; }
+  .btn { min-height: 44px; padding: 0 24px; border: 0; border-radius: 8px; background: var(--accent); color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; }
+  a.btn { display: inline-flex; align-items: center; text-decoration: none; }
+  .table-head .muted { margin-right: auto; }
+  .btn.big { min-height: 48px; font-size: 16px; }
+  .btn:disabled { background: #9FB3BF; cursor: not-allowed; }
+  .btn:focus-visible, select:focus-visible, .remove:focus-visible { outline: 3px solid #0F766E55; outline-offset: 2px; }
+  .panel h3 { margin: 0; font-size: 16px; font-weight: 600; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 14px; color: var(--muted); }
+  select { min-height: 44px; border: 1px solid var(--edge); border-radius: 8px; padding: 0 12px; font-size: 15px; background: #fff; color: var(--ink); }
+  .file { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 14px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .file:last-child { border-bottom: 0; }
+  .file span.name { overflow-wrap: anywhere; }
+  .remove { border: 0; background: none; color: var(--muted); font-size: 14px; cursor: pointer; min-height: 32px; padding: 0 8px; border-radius: 6px; }
+  .remove:hover { color: var(--warn); }
+  .empty { font-size: 14px; color: var(--muted); }
+  .results { display: flex; flex-direction: column; gap: 16px; }
+  .results h2 { margin: 0; font-size: 18px; font-weight: 600; }
+  .card { background: #fff; border-radius: 12px; padding: 20px 24px; }
+  .card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .card-head .files { font-weight: 600; overflow-wrap: anywhere; }
+  .tag { padding: 4px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .tag.pan { background: var(--blue-soft); color: var(--blue-ink); }
+  .tag.aadhaar { background: var(--accent-soft); color: var(--accent-dark); }
+  .row { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .row:last-child { border-bottom: 0; }
+  .row .k { font-size: 14px; color: var(--muted); }
+  .row .v { font-size: 15px; font-weight: 500; text-align: right; overflow-wrap: anywhere; max-width: 65%; }
+  .row .v.none { color: var(--muted); font-weight: 400; }
+  .check { display: block; font-size: 13px; font-weight: 600; }
+  .check.ok { color: var(--ok); }
+  .check.bad { color: var(--warn); }
+  .notice { background: var(--warn-soft); color: var(--warn); border-radius: 8px; padding: 12px 14px; font-size: 14px; }
+  .error { background: #FDE4E1; color: #8E1B10; border-radius: 8px; padding: 12px 14px; font-size: 14px; }
+  .hidden { display: none; }
+  .row .v { flex: 0 1 65%; }
+  .row .k { padding-top: 8px; }
+  .edit { width: 100%; border: 1px solid transparent; border-radius: 6px; padding: 6px 8px; font-size: 15px; font-weight: 500; text-align: right; background: #F8FAFB; color: var(--ink); font-family: inherit; }
+  .edit:hover { border-color: var(--line); }
+  .edit:focus { outline: none; border-color: var(--accent); background: #fff; box-shadow: 0 0 0 3px #0F766E33; }
+  textarea.edit { resize: vertical; }
+  .card .save { margin-top: 14px; width: 100%; }
+  .table-panel { max-width: 1200px; }
+  .table-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+  .muted { color: var(--muted); font-size: 14px; }
+  .table-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; min-width: 980px; font-size: 14px; }
+  th { text-align: left; font-weight: 600; color: var(--muted); padding: 10px 12px; border-bottom: 2px solid var(--line); white-space: nowrap; }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td.addr { min-width: 220px; }
+  td.empty-row { text-align: center; color: var(--muted); padding: 28px 12px; }
+  .del { border: 1px solid var(--edge); background: #fff; color: var(--warn); border-radius: 6px; min-height: 32px; padding: 0 12px; font-size: 13px; cursor: pointer; }
+  .del:hover { background: var(--warn-soft); }
+  .del:focus-visible { outline: 3px solid #0F766E55; outline-offset: 2px; }
+  @media (max-width: 640px) { .page { padding: 20px 16px; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <div>
+      <h1>ID Card Reader</h1>
+      <p>Extract Aadhaar and PAN details. Everything runs on this machine.</p>
+      <nav class="nav"><a href="/" aria-current="page">ID cards</a><a href="/statement">Bank statements</a></nav>
+    </div>
+    <div id="status" class="badge off">Checking local model…</div>
+  </header>
+
+  <div class="grid">
+    <div class="col">
+      <div id="drop" class="drop">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#0F766E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg>
+        <h2>Drop PDF, PNG or JPG files here</h2>
+        <p>Add Aadhaar front and back together for one person</p>
+        <button id="browse" class="btn" type="button">Browse files</button>
+        <input id="picker" type="file" multiple accept=".pdf,.png,.jpg,.jpeg" class="hidden">
+      </div>
+      <div class="panel">
+        <h3>Files to process</h3>
+        <div id="files"><div class="empty">No files added yet.</div></div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="panel">
+        <h3>Settings</h3>
+        <div class="field">
+          <label for="model">Model</label>
+          <select id="model"><option>gemma3:12b</option></select>
+        </div>
+        <button id="go" class="btn big" type="button" disabled>Extract details</button>
+      </div>
+      <div id="results" class="results hidden"></div>
+    </div>
+  </div>
+
+  <section class="panel table-panel" aria-labelledby="rec-title">
+    <div class="table-head">
+      <h3 id="rec-title">Saved records</h3>
+      <span id="count" class="muted"></span>
+      <a class="btn" href="/api/export.xlsx" download>Download Excel</a>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr id="thead"></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<script>
+const LABELS = {
+  pan_number: "PAN number", aadhaar_number: "Aadhaar number", name: "Name",
+  father_name: "Father's name", dob: "Date of birth", gender: "Gender",
+  address: "Address (English)", pincode: "Pincode"
+};
+const CHECKS = {
+  pan_number: ["pan_number_valid", "Format valid"],
+  aadhaar_number: ["aadhaar_number_valid", "Checksum passed"],
+  pincode: ["pincode_valid", "Valid pincode"]
+};
+
+let files = [];
+const $ = (id) => document.getElementById(id);
+
+// Small helper: build an element safely (text is never parsed as HTML).
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+/* ---------- Model status ---------- */
+async function loadModels() {
+  const status = $("status"), select = $("model");
+  try {
+    const d = await (await fetch("/api/models")).json();
+    if (d.ready) {
+      const list = d.models.length ? d.models : [d.default];
+      select.replaceChildren(...list.map((m) => {
+        const o = el("option", "", m); o.value = m; o.selected = m === d.default; return o;
+      }));
+      status.textContent = "Local model ready";
+      status.className = "badge";
+    } else {
+      status.textContent = "Ollama not running. Start it, then reload.";
+    }
+  } catch {
+    status.textContent = "Cannot reach the app server.";
+  }
+}
+
+/* ---------- File list ---------- */
+function addFiles(list) {
+  for (const f of list) {
+    if (!/\.(pdf|png|jpe?g)$/i.test(f.name)) continue;
+    if (!files.some((x) => x.name === f.name && x.size === f.size)) files.push(f);
+  }
+  renderFiles();
+}
+
+function renderFiles() {
+  const box = $("files");
+  box.replaceChildren();
+  if (!files.length) box.append(el("div", "empty", "No files added yet."));
+  files.forEach((f, i) => {
+    const row = el("div", "file");
+    row.append(el("span", "name", f.name));
+    const rm = el("button", "remove", "Remove");
+    rm.type = "button";
+    rm.setAttribute("aria-label", "Remove " + f.name);
+    rm.onclick = () => { files.splice(i, 1); renderFiles(); };
+    row.append(rm);
+    box.append(row);
+  });
+  $("go").disabled = files.length === 0;
+}
+
+const drop = $("drop");
+$("browse").onclick = () => $("picker").click();
+$("picker").onchange = (e) => { addFiles(e.target.files); e.target.value = ""; };
+["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", (e) => addFiles(e.dataTransfer.files));
+
+/* ---------- Extract and show results ---------- */
+function renderResults(data) {
+  const box = $("results");
+  box.replaceChildren(el("h2", "", "Extracted details"));
+
+  data.cards.forEach((c) => {
+    const card = el("div", "card");
+    const head = el("div", "card-head");
+    head.append(el("span", "files", c.files.join(", ")));
+    head.append(el("span", "tag " + c.type, c.type === "pan" ? "PAN card" : "Aadhaar card"));
+    card.append(head);
+
+    const inputs = {};
+    Object.entries(c.fields).forEach(([key, value]) => {
+      const row = el("div", "row");
+      const id = "f-" + c.type + "-" + key;
+      const lab = el("label", "k", LABELS[key] || key);
+      lab.htmlFor = id;
+      const wrap = el("div", "v");
+      const input = el(key === "address" ? "textarea" : "input", "edit");
+      if (key === "address") input.rows = 2;
+      input.id = id;
+      input.value = value || "";
+      input.placeholder = "Not found";
+      wrap.append(input);
+      if (value && CHECKS[key]) {
+        const ok = c.validation[CHECKS[key][0]];
+        wrap.append(el("span", "check " + (ok ? "ok" : "bad"), ok ? CHECKS[key][1] : "Check this against the card"));
+      }
+      inputs[key] = input;
+      row.append(lab, wrap);
+      card.append(row);
+    });
+
+    const save = el("button", "btn save", "Save to table");
+    save.type = "button";
+    Object.values(inputs).forEach((i) => i.addEventListener("input", () => {
+      save.disabled = false; save.textContent = "Save to table";
+    }));
+    save.onclick = async () => {
+      save.disabled = true; save.textContent = "Saving…";
+      const fields = {};
+      Object.entries(inputs).forEach(([k, i]) => { fields[k] = i.value; });
+      try {
+        const res = await fetch("/api/save", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: c.type, files: c.files, fields })
+        });
+        const d = await res.json();
+        if (!res.ok) throw new Error(d.error || "Save failed.");
+        save.textContent = d.updated ? "Updated in table" : "Saved to table";
+        loadRecords();
+      } catch (err) {
+        save.disabled = false; save.textContent = "Save failed. Try again";
+      }
+    };
+    card.append(save);
+    box.append(card);
+  });
+
+  if (data.unread && data.unread.length) {
+    box.append(el("div", "notice", "Not read: " + data.unread.join("; ")));
+  }
+  if (!data.cards.length) {
+    box.append(el("div", "notice", "No PAN or Aadhaar card was found. Try a clearer, closely cropped image."));
+  }
+  box.classList.remove("hidden");
+}
+
+$("go").onclick = async () => {
+  const btn = $("go"), box = $("results");
+  btn.disabled = true;
+  btn.textContent = "Reading cards…";
+  box.classList.add("hidden");
+
+  const form = new FormData();
+  files.forEach((f) => form.append("files", f));
+  form.append("model", $("model").value);
+
+  try {
+    const res = await fetch("/api/extract", { method: "POST", body: form });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Extraction failed.");
+    renderResults(data);
+  } catch (err) {
+    box.replaceChildren(el("div", "error", "Could not read the files: " + err.message));
+    box.classList.remove("hidden");
+  } finally {
+    btn.textContent = "Extract details";
+    btn.disabled = files.length === 0;
+  }
+};
+
+/* ---------- Saved records table ---------- */
+const COLS = [
+  ["doc_type", "Card"], ["name", "Name"], ["pan_number", "PAN number"],
+  ["aadhaar_number", "Aadhaar number"], ["gender", "Gender"], ["dob", "Date of birth"],
+  ["father_name", "Father's name"], ["address", "Address"], ["pincode", "Pincode"],
+  ["saved_at", "Saved on"]
+];
+
+async function loadRecords() {
+  const head = $("thead"), body = $("tbody");
+  if (!head.children.length) {
+    COLS.forEach(([, label]) => head.append(el("th", "", label)));
+    head.append(el("th", "", ""));
+  }
+  let rows = [];
+  try { rows = await (await fetch("/api/records")).json(); } catch { /* server not reachable */ }
+  $("count").textContent = rows.length + (rows.length === 1 ? " record" : " records");
+  body.replaceChildren();
+  if (!rows.length) {
+    const tr = el("tr"), td = el("td", "empty-row", "Nothing saved yet. Extract a card and choose Save to table.");
+    td.colSpan = COLS.length + 1; tr.append(td); body.append(tr);
+    return;
+  }
+  rows.forEach((r) => {
+    const tr = el("tr");
+    COLS.forEach(([key]) => {
+      let text = r[key] || "";
+      if (key === "doc_type") text = r[key] === "pan" ? "PAN" : "Aadhaar";
+      tr.append(el("td", key === "address" ? "addr" : "", text));
+    });
+    const td = el("td");
+    const del = el("button", "del", "Delete");
+    del.type = "button";
+    del.setAttribute("aria-label", "Delete record for " + (r.name || "unnamed"));
+    del.onclick = async () => {
+      if (!confirm("Delete this saved record?")) return;
+      await fetch("/api/records/" + r.id, { method: "DELETE" });
+      loadRecords();
+    };
+    td.append(del); tr.append(td); body.append(tr);
+  });
+}
+
+loadModels();
+renderFiles();
+loadRecords();
+</script>
+</body>
+</html>
