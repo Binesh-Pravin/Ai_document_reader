@@ -18,9 +18,14 @@ import json
 import base64
 import requests
 import pymupdf  # PyMuPDF
-
-OLLAMA = "http://localhost:11434"
+import os
+ 
+OLLAMA = os.environ.get("OLLAMA_URL", "http://localhost:11434")
+OLLAMA_TOKEN = os.environ.get("OLLAMA_PROXY_TOKEN", "")
 VISION_MODEL = "gemma3:12b"
+
+# OLLAMA = "http://localhost:11434"
+# VISION_MODEL = "gemma3:12b"
 DPI = 200
 
 FIELDS = [
@@ -81,9 +86,23 @@ def _chat(img_bytes, use_json_format):
         "stream": False,
         "options": {"temperature": 0, "num_ctx": 8192},
     }
+    # if use_json_format:
+    #     body["format"] = "json"
+    # r = requests.post(f"{OLLAMA}/api/chat", json=body, timeout=600)
     if use_json_format:
         body["format"] = "json"
-    r = requests.post(f"{OLLAMA}/api/chat", json=body, timeout=600)
+ 
+    headers = {}
+ 
+    if OLLAMA_TOKEN:
+        headers["Authorization"] = f"Bearer {OLLAMA_TOKEN}"
+ 
+    r = requests.post(
+        f"{OLLAMA}/api/chat",
+        headers=headers,
+        json=body,
+        timeout=600
+)
     if r.status_code != 200:
         sys.exit(f"Ollama error {r.status_code}: {r.text[:500]}")
     return r.json()["message"]["content"]
