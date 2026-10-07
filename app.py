@@ -122,11 +122,27 @@ def home():
     return send_from_directory(app.static_folder, "index.html")
 
 
+# @app.get("/api/models")
+# def models():
+#     """Installed Ollama models, so the page can show a dropdown and a ready badge."""
+#     try:
+#         r = requests.get(f"{kyc.OLLAMA}/api/tags", timeout=3)
+#         r.raise_for_status()
 @app.get("/api/models")
 def models():
     """Installed Ollama models, so the page can show a dropdown and a ready badge."""
     try:
-        r = requests.get(f"{kyc.OLLAMA}/api/tags", timeout=3)
+        headers = {}
+
+        if kyc.OLLAMA_TOKEN:
+            headers["Authorization"] = f"Bearer {kyc.OLLAMA_TOKEN}"
+
+        r = requests.get(
+            f"{kyc.OLLAMA}/api/tags",
+            headers=headers,
+            timeout=10
+        )
+
         r.raise_for_status()
         names = sorted(m["name"] for m in r.json().get("models", []))
         return jsonify({"ready": True, "models": names, "default": kyc.VISION_MODEL})
